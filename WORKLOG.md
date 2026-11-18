@@ -65,3 +65,14 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
 - Habitat < 100 voxels for k=3: 389 patients (34%), mostly h3 (380).
 - QC (`outputs\qc\habitats\`): high-enhancement core, low-enhancement rim. Weakly enhancing tumours can be all h1.
 - Also added `src\cv.py` (shared cohort + CV folds, so all scripts use the same folds).
+
+## 2026-11-18 — Step 04: radiomics features (`src\04_features.py`, `config\radiomics.yaml`) — pilot
+
+- `config\radiomics.yaml`: Original image only, 3D, no resampling, binWidth **0.1** (normalised units), same for all
+  phases. Chosen on training patients: 90% of habitat regions get 30–130 bins (`outputs\features\k3\bin_check.csv`).
+- Per patient × phase × habitat (k = 3): firstorder, glcm, glrlm, glszm, gldm, ngtdm → **279 features per phase**.
+  Habitat < 100 voxels → NaN. Shape once per patient (14) + habitat volume fractions (3).
+- Pilot, 20 training patients: 0 errors, ~10 s per patient per worker, ~3 s per patient overall (4 workers)
+  → full run estimated at ~1 hour.
+- Each patient is saved to `parts\<pid>.json` at once; CSVs rebuilt every 100 patients; restart skips finished patients.
+- Full run: `code\run_features.bat` (double-click), started by the user outside Claude Code.
