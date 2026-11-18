@@ -86,3 +86,16 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
 - Empty (NaN) habitat blocks: h1 10 patients, h2 42, h3 380 → 12.7% of phase feature values are NaN (imputed in folds).
 - Quick look (train + val, single features): the strongest features only reach AUROC ≈ 0.59 (e.g. early_h2_ngtdm_Strength),
   so imaging signal per feature is weak.
+
+## 2026-11-18 — Step 05: training + cross-validation (`src\05_train.py`)
+
+- Development set = train + val (1,010 patients, pCR 31.6%). Test set not loaded. 5 × 5 repeated stratified CV
+  (`cv.dev_folds`). All learning steps inside an sklearn Pipeline per fold. Run time 8.6 min.
+- Pooled CV AUROC, mean ± SD over 5 repeats (primary = LASSO → L2 logistic):
+  clinical 0.673 ± 0.007 | pre 0.566 ± 0.005 | early 0.553 ± 0.016 | late 0.566 ± 0.007 | fused 0.573 ± 0.017 |
+  clinical + pre 0.686 ± 0.009. XGBoost: clinical 0.655, pre 0.550, early 0.557, late 0.537, fused 0.563.
+- Phase differences are tiny (≤ 0.013 AUROC) and change direction between classifiers → no phase stands out.
+  Every imaging model is ~0.11 below the clinical model. Adding pre-phase features to clinical: +0.013.
+- By cohort: imaging models work a little on I-SPY2 (0.56–0.59) but not on I-SPY1 (0.46–0.53).
+- Outputs in `outputs\models\`: oof_predictions.csv, cv_metrics.csv, cv_metrics_by_repeat.csv, cv_differences.csv,
+  selected_features_*.csv, 13 refit models `<model>_k3_<lr|xgb>.joblib`, run_05_train.log.

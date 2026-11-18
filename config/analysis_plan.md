@@ -117,3 +117,15 @@ If we change anything later, we add a dated note at the bottom and say why. We d
   k=2 0.973, **k=3 0.907 (pass)**, k=4 0.898 (just below 0.90). So for k=3 the single fit on train + val is kept.
   **If k=4 is used later, its K-means must be fitted inside each CV fold**, as the rule says.
 - Habitats < 100 voxels (features = NaN, imputed in folds), k=3: h1 10, h2 42, **h3 380 patients (33%)**.
+
+### 2026-11-18 — Model training details (05_train.py)
+- Clinical-only model = HR, HER2, age, cohort (as in section 7). Treatment arm only in the I-SPY2 sensitivity model
+  (`clinical_arm`, arm grouped as in section 7).
+- Primary pipeline (lr), all inside the folds: median imputation → rank-to-normal scaling (QuantileTransformer;
+  radiomics features are very skewed) → drop near-constant (one value ≥ 95%) → drop |r| > 0.95 (greedy, in column
+  order) → LASSO (L1 logistic, C by inner 5-fold AUROC) → L2 logistic (C by inner 5-fold AUROC), class_weight balanced.
+  The clinical model (4 inputs) skips the filters and LASSO.
+- XGBoost (secondary): same imputation and filters, no LASSO, fixed settings (300 trees, depth 3, lr 0.05,
+  subsample 0.8, colsample 0.5), balanced sample weights. Not tuned.
+- "Best single phase" for `clinical_best` and the "fused vs best phase" test = **pre** (mean CV AUROC 0.566 vs
+  late 0.566 vs early 0.553). Pre and late are practically tied (difference 0.0006); the rule picked pre.
