@@ -38,7 +38,7 @@ QC_DIR = P.OUT / "qc" / "preprocess"
 NEW_SPACING = 1.0   # mm, isotropic
 MARGIN_MM = 10      # crop margin around the tumour
 N_QC_RANDOM = 20
-WATCH = {"ISPY2-553012"} | P.QC_CHECK
+WATCH = P.EXCLUDE_ANALYSIS | P.QC_CHECK | set(P.PHASE_OVERRIDE)
 
 
 # ---------------------------------------------------------------------------
@@ -90,8 +90,9 @@ def process(row, make_qc):
 
     # 1-3: load and resample
     imgs = {}
-    for phase, col in P.PHASE_COLS.items():
-        arr = load_array(P.scan_path(pid, ds, int(row[col])))
+    acqs = {phase: P.phase_acq(row, phase) for phase in P.PHASES}  # includes QC corrections
+    for phase, acq in acqs.items():
+        arr = load_array(P.scan_path(pid, ds, acq))
         imgs[phase] = sitk.GetArrayFromImage(resample(to_sitk(arr, xy, zt), sitk.sitkBSpline))
     mraw = (load_array(P.mask_path(pid, ds)) > 0).astype(np.uint8)
     mask = sitk.GetArrayFromImage(resample(to_sitk(mraw, xy, zt), sitk.sitkNearestNeighbor))
@@ -136,6 +137,7 @@ def process(row, make_qc):
         "pid": pid, "dataset": ds, "split": row["split"], "pCR": row["pCR"],
         "subtype": row["HR_HER2_STATUS"],
         "use": pid not in P.EXCLUDE_ANALYSIS,
+        "acq": "/".join(str(acqs[p]) for p in P.PHASES),
         "shape": "x".join(map(str, mask[sl].shape)), "full_shape": "x".join(map(str, full_shape)),
         "tumour_voxels": tum, "tumour_vox_orig": int(mraw.sum()),
         "vol_ratio": round(tum / (mraw.sum() * xy * xy * zt), 4) if mraw.sum() else np.nan,
@@ -160,6 +162,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pilot", type=int, default=0, help="only N random training patients")
     ap.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1))
+    ap.add_argument("--only", nargs="+", default=None,
+                    help="re-run only these pids and update their rows in index.csv")
     args = ap.parse_args()
 
     OUT.mkdir(parents=True, exist_ok=True)
@@ -170,7 +174,11 @@ def main():
     meta["split"] = meta["test"].map(P.SPLIT_NAMES)
     meta["pCR"] = meta["pCR"].astype(int)
 
-    if args.pilot:
+    if args.only:
+        meta = meta[meta["pid"].isin(args.only)]
+        qc_ids = set(meta["pid"])
+        index_name = "index.csv"
+    elif args.pilot:
         meta = meta[meta["split"] == "train"].sample(args.pilot, random_state=P.SEED)
         qc_ids = set()
         index_name = "index_pilot.csv"
@@ -188,7 +196,14 @@ def main():
     res = pd.DataFrame(list(tqdm(gen, total=len(rows), unit="pt")))
     wall = time.time() - t0
 
-    res.to_csv(OUT / index_name, index=False)
+    if args.only and (OUT / index_name).exists():
+        # replace just these rows in the existing index, keep the original order
+        old = pd.read_csv(OUT / index_name)
+        full = pd.concat([old[~old["pid"].isin(res["pid"])], res])
+        full = full.set_index("pid").loc[old["pid"]].reset_index()
+        full.to_csv(OUT / index_name, index=False)
+    else:
+        res.to_csv(OUT / index_name, index=False)
     n_err = int(res["error"].notna().sum()) if "error" in res else 0
     ok = res[res.get("error", pd.Series(index=res.index, dtype=object)).isna()]
     print(f"Done: {len(ok)} ok, {n_err} errors. Wall time {wall/60:.1f} min, "

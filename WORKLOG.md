@@ -46,3 +46,10 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
 - Problems found: ISPY1_1156 (metadata "early" is a second pre-contrast scan) and ISPY1_1187 (saturated
   pre-contrast voxels break normalisation). Decision pending.
 - Noted: many FTV masks contain scattered small specks outside the main tumour (median 40 pieces).
+
+## 2026-11-18 — Fix 2 problem patients
+
+- ISPY1_1156: phase choice corrected to acq 0/2/3 (`paths.PHASE_OVERRIDE`), re-processed, QC checked: normal enhancement.
+- ISPY1_1187: excluded (saturated pre-contrast image).
+- New `--only <pids>` option in `02_preprocess.py` to re-run single patients and update `index.csv`.
+- Analysis cohort: **1,138 patients**.

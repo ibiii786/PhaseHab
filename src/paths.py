@@ -23,9 +23,16 @@ EXCLUDE = {
 }
 
 # Excluded from the analysis by config/analysis_plan.md (still preprocessed, for QC)
-EXCLUDE_ANALYSIS = {"ISPY2-553012"}   # mask on 1 slice only
-# "Check in QC" patients (0/255 masks, 4x the trial's mask_count)
+EXCLUDE_ANALYSIS = {
+    "ISPY2-553012",   # mask on 1 slice only, covers a small part of the tumour
+    "ISPY1_1187",     # pre-contrast image has saturated voxels (65535): normalisation breaks
+}
+# "Check in QC" patients (0/255 masks, 4x the trial's mask_count) - both KEPT after QC
 QC_CHECK = {"ISPY2-726091", "ISPY2-934459"}
+
+# Corrections to the metadata phase choice (acquisition numbers), found in QC.
+# ISPY1_1156: metadata "early" (acq1) is a second pre-contrast scan; real early/late = acq2/acq3.
+PHASE_OVERRIDE = {"ISPY1_1156": {"early": 2, "late": 3}}
 
 # Split codes in the metadata 'test' column
 SPLIT_NAMES = {0: "train", 1: "test", 2: "val"}
@@ -33,6 +40,12 @@ SPLIT_NAMES = {0: "train", 1: "test", 2: "val"}
 PHASES = ["pre", "early", "late"]
 PHASE_COLS = {"pre": "pre", "early": "post_early", "late": "post_late"}
 SEED = 42
+
+
+def phase_acq(row, phase: str) -> int:
+    """Acquisition number for a phase: metadata value, unless corrected in PHASE_OVERRIDE."""
+    fix = PHASE_OVERRIDE.get(row["pid"], {})
+    return int(fix.get(phase, row[PHASE_COLS[phase]]))
 
 
 def scan_path(pid: str, dataset: str, acq: int) -> Path:

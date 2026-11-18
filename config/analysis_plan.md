@@ -101,3 +101,10 @@ If we change anything later, we add a dated note at the bottom and say why. We d
   tumour mean 41.7 vs 41.9 on pre). The real early/late are acq2/acq3.
 - **ISPY1_1187: decision pending.** The pre-contrast image has saturated voxels (>0.1% at 65,535; median 41), which
   breaks the Otsu normalisation (m = 43,935).
+
+### 2026-11-18 — Decisions on the 2 pending patients (agreed with the user)
+- **ISPY1_1156: kept, phases corrected** to pre = acq0, early = acq2, late = acq3 (`paths.PHASE_OVERRIDE`).
+  After re-processing, the tumour enhances normally on early and washes out slightly on late (QC image checked).
+- **ISPY1_1187: excluded** (`paths.EXCLUDE_ANALYSIS`). Its pre-contrast image is corrupted by saturated voxels.
+- Analysis cohort is now **1,138 patients** (1,140 minus ISPY2-553012 and ISPY1_1187).
+  `outputs\preprocessed\index.csv` has `use = False` for the 2 excluded patients and an `acq` column (pre/early/late).
