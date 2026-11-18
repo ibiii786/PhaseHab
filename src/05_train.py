@@ -21,13 +21,14 @@ Classifiers (everything learned is inside an sklearn Pipeline, so it is fit on t
        balanced sample weights). No LASSO step: trees do their own selection.
   The clinical model has only 4 inputs, so its lr pipeline skips the filters and LASSO.
 
-Outputs (outputs/models/):
+Outputs (outputs/models/k{k}/):
   oof_predictions.csv     one row per patient x model x classifier x repeat (out-of-fold probability)
   cv_metrics_by_repeat.csv, cv_metrics.csv (AUROC / AUPRC / Brier: mean +- SD over repeats,
                           plus AUROC of the repeat-averaged OOF probability, pooled / I-SPY1 / I-SPY2)
   cv_differences.csv      paired AUROC differences between models, per repeat (descriptive; tests are in 06)
   selected_features_<model>_k{k}.csv   how often LASSO picked each feature over the 25 folds
   <model>_k{k}_<classifier>.joblib     final pipeline refit on the full development set
+  DONE.txt                written last, so the overnight runner knows this k is finished
 
 Run from code\ :  .venv\Scripts\python.exe src\05_train.py [--k 3] [--jobs 4]
 """
@@ -67,7 +68,7 @@ def main():
     ap.add_argument("--jobs", type=int, default=4)
     args = ap.parse_args()
     t0 = time.time()
-    out = P.OUT / "models"
+    out = P.OUT / "models" / f"k{args.k}"
     out.mkdir(parents=True, exist_ok=True)
 
     dev, X = load_data(args.k)
@@ -194,6 +195,7 @@ def main():
     print("\nAUROC by cohort\n" + coh.round(3).to_string())
     print("\nPAIRED DIFFERENCES (pooled AUROC, per repeat)\n" + diffs.to_string(index=False))
     print(f"\nDone in {(time.time() - t0) / 60:.1f} min")
+    (out / "DONE.txt").write_text(f"05_train.py finished, k = {args.k}, {time.strftime('%Y-%m-%d %H:%M')}\n")
 
 
 if __name__ == "__main__":

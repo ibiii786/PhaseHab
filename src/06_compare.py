@@ -1,7 +1,7 @@
 r"""
 06_compare.py - Statistical comparison of the CV models (config/analysis_plan.md, section 8).
 
-Input: outputs/models/oof_predictions.csv (from 05_train.py; development set only, test never used).
+Input: outputs/models/k{k}/oof_predictions.csv (from 05_train.py; development set only, test never used).
 Each patient's out-of-fold probability is averaged over the 5 repeats (plan section 8), then:
 
 1. Metrics per model x classifier x cohort (pooled / I-SPY1 / I-SPY2):
@@ -15,10 +15,12 @@ Each patient's out-of-fold probability is averaged over the 5 repeats (plan sect
    Same 4 tests for xgb (secondary) and per cohort (exploratory), each with its own Holm correction.
    Extra, unadjusted, descriptive: each phase vs clinical, clinical + best phase vs clinical,
    clinical + arm vs clinical (I-SPY2 only).
-4. Figures (outputs/compare/figures/): ROC curves, calibration curves, AUROC forest plot, phase-difference plot.
+4. Figures (outputs/compare/k{k}/figures/): ROC curves, calibration curves, AUROC forest plot, phase differences.
+Outputs: outputs/compare/k{k}/.
 
-Run from code\ :  .venv\Scripts\python.exe src\06_compare.py
+Run from code\ :  .venv\Scripts\python.exe src\06_compare.py [--k 3]
 """
+import argparse
 import os
 import sys
 
@@ -35,9 +37,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import paths as P  # noqa: E402
 import stats as S  # noqa: E402
 
-MOD = P.OUT / "models"
-OUT = P.OUT / "compare"
-FIG = OUT / "figures"
+MOD = OUT = FIG = None   # set in main() from --k
 N_BOOT = 2000
 COHORTS = ["pooled", "spy1", "spy2"]
 MODELS = ["clinical", "pre", "early", "late", "fused", "clinical_best", "clinical_arm"]
@@ -252,6 +252,13 @@ def fig_differences(tests, path):
 
 # ----------------------------------------------------------------------------- main
 def main():
+    global MOD, OUT, FIG
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--k", type=int, default=3)
+    args = ap.parse_args()
+    MOD = P.OUT / "models" / f"k{args.k}"
+    OUT = P.OUT / "compare" / f"k{args.k}"
+    FIG = OUT / "figures"
     OUT.mkdir(parents=True, exist_ok=True)
     FIG.mkdir(parents=True, exist_ok=True)
     oof = pd.read_csv(MOD / "oof_predictions.csv")

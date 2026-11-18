@@ -150,3 +150,16 @@ If we change anything later, we add a dated note at the bottom and say why. We d
   (computed separately for each grouping, so shares from different groupings are not directly comparable).
 - Main SHAP result = fold models explained on their held-out patients (25 folds, mean ± SD), because the single final
   refit depends on which few features LASSO happens to pick (e.g. the final early-only model uses 1 feature).
+
+### 2026-11-18 — How k is chosen (written BEFORE any k = 2 / k = 4 model results exist)
+- Only cross-validation results on train + val are used. The test set is not used to choose k.
+- **k = 4 is exploratory only.** Its stability check fails (min ARI 0.898 < 0.90), and section 5 then requires
+  per-fold K-means = 25 × the full feature extraction (~50 h on this PC), which is not feasible. Also, 51% of
+  patients have an h4 habitat < 100 voxels. k = 4 is still run with the single K-means and reported, but cannot
+  be chosen as the main k.
+- **Eligible: k = 2 and k = 3.** Score = mean pooled CV AUROC (primary LR) of the 4 imaging models
+  (pre, early, late, fused). **k = 3 stays the main k unless k = 2 scores at least 0.01 higher.**
+  (k = 3 was the first k analysed in full; 0.01 avoids switching for noise-level differences.)
+- Implemented in `src\choose_k.py`; run by `run_k2_k4_overnight.bat` → `outputs\models\k_selection.md`.
+- Output folders are now per k: `outputs\models\k{k}\`, `outputs\compare\k{k}\`, `outputs\shap\k{k}\`
+  (the k = 3 results were moved into the k3 folders).

@@ -132,3 +132,14 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
 - Clinical + pre (final LR): clinical block 57%, pre-phase radiomics 43% of SHAP importance.
 - Outputs: `outputs\shap\` group_importance_{final,folds,summary}.csv, top_features_final.csv, final_shap_*.csv,
   figures\ (phase shares, habitat shares, phase × habitat heatmap, beeswarm plots).
+
+## 2026-11-18 — Prepared the overnight k = 2 / k = 4 run
+
+- `run_k2_k4_overnight.bat` (double-click) → `src\run_overnight.py`: features k=2, features k=4, training k=2,
+  training k=4, then `src\choose_k.py`. Runs offline; restart-safe (finished patients / steps are skipped);
+  asks Windows not to sleep while it runs. Log: `outputs\overnight_k2_k4.log`. Expected ~3.5 h.
+- k-choice rule fixed in the plan before results: k = 4 exploratory only (fails stability); k = 2 replaces k = 3
+  only if its mean imaging CV AUROC is ≥ 0.01 higher.
+- Outputs are now per k (`outputs\models\k{k}\`, `compare\k{k}\`, `shap\k{k}\`); `05_train.py` writes `DONE.txt`;
+  `06_compare.py` takes `--k`. k = 3 re-run through the new paths to check it.
+- Pilot: 4 patients each for k = 2 (186 features per phase) and k = 4 (up to 372 per phase), 0 errors.

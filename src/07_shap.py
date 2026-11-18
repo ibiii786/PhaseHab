@@ -19,7 +19,7 @@ then take the mean of the absolute value over patients. Share = group importance
 Groupings: phase (pre / early / late / shape / clinical), habitat (h1 / h2 / h3 / shape / clinical),
 phase x habitat (e.g. early_h2) and feature class (firstorder, glcm, ...).
 
-Outputs: outputs/shap/ (CSV tables + figures/).
+Outputs: outputs/shap/k{k}/ (CSV tables + figures/).
 Run from code\ :  .venv\Scripts\python.exe src\07_shap.py [--k 3] [--jobs 4]
 """
 import argparse
@@ -42,8 +42,7 @@ import cv  # noqa: E402
 import paths as P  # noqa: E402
 from modelling import fit_pipe, kept_names, load_data, make_pipeline  # noqa: E402
 
-OUT = P.OUT / "shap"
-FIG = OUT / "figures"
+OUT = FIG = None   # set in main() from --k
 GROUPINGS = ["phase", "habitat", "phase_habitat", "class"]
 COLOUR = {"pre": "#2a78d6", "early": "#eb6834", "late": "#1baf7a", "shape": "#eda100", "clinical": "#e87ba4"}
 INK, MUTED, GRID = "#1f1f1e", "#6b6a64", "#e4e3de"
@@ -202,9 +201,12 @@ def main():
     ap.add_argument("--k", type=int, default=3)
     ap.add_argument("--jobs", type=int, default=4)
     args = ap.parse_args()
+    global OUT, FIG
+    OUT = P.OUT / "shap" / f"k{args.k}"
+    FIG = OUT / "figures"
     OUT.mkdir(parents=True, exist_ok=True)
     FIG.mkdir(parents=True, exist_ok=True)
-    mdir = P.OUT / "models"
+    mdir = P.OUT / "models" / f"k{args.k}"
 
     dev, X = load_data(args.k)
     y = dev["pCR"].astype(int).to_numpy()
