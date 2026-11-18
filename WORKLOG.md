@@ -53,3 +53,15 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
 - ISPY1_1187: excluded (saturated pre-contrast image).
 - New `--only <pids>` option in `02_preprocess.py` to re-run single patients and update `index.csv`.
 - Analysis cohort: **1,138 patients**.
+
+## 2026-11-18 — Step 03: habitats (`src\03_habitats.py`)
+
+- One K-means per k (2, 3, 4) on 2.0 M voxels (≤ 2,000 per patient) from 1,010 train + val patients; test never used.
+  All 1,138 patients assigned. Maps in `outputs\habitats\k{k}\`, tables `habitat_table_k{k}.csv`, centres `centres.csv`.
+- Switched MiniBatchKMeans → full K-means (MiniBatch was unstable between seeds). Logged in the plan.
+- k=3 centres (pre / early / late, normalised): h1 −0.03 / 2.98 / 3.16 low enhancement (39% of voxels);
+  h2 1.01 / 6.03 / 6.18 medium (47%); h3 2.02 / 10.32 / 10.01 high with slight wash-out (14%). Silhouette 0.41.
+- Stability (min per-fold ARI): k2 0.97, k3 0.91 (pass), k4 0.90 (just fails → per-fold fitting if k4 is used).
+- Habitat < 100 voxels for k=3: 389 patients (34%), mostly h3 (380).
+- QC (`outputs\qc\habitats\`): high-enhancement core, low-enhancement rim. Weakly enhancing tumours can be all h1.
+- Also added `src\cv.py` (shared cohort + CV folds, so all scripts use the same folds).

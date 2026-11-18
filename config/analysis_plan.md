@@ -108,3 +108,12 @@ If we change anything later, we add a dated note at the bottom and say why. We d
 - **ISPY1_1187: excluded** (`paths.EXCLUDE_ANALYSIS`). Its pre-contrast image is corrupted by saturated voxels.
 - Analysis cohort is now **1,138 patients** (1,140 minus ISPY2-553012 and ISPY1_1187).
   `outputs\preprocessed\index.csv` has `use = False` for the 2 excluded patients and an `acq` column (pre/early/late).
+
+### 2026-11-18 — Habitats (03_habitats.py)
+- **K-means algorithm: standard (full) K-means instead of MiniBatchKMeans.** MiniBatch gave different clusters for
+  different seeds on the same data (seed-vs-seed ARI 0.47–0.92), so it failed the stability check for a technical reason.
+  Full K-means fits in < 30 s and in memory.
+- **Stability check (plan section 5)**, refit on the training part of each fold of repeat 1, minimum ARI:
+  k=2 0.973, **k=3 0.907 (pass)**, k=4 0.898 (just below 0.90). So for k=3 the single fit on train + val is kept.
+  **If k=4 is used later, its K-means must be fitted inside each CV fold**, as the rule says.
+- Habitats < 100 voxels (features = NaN, imputed in folds), k=3: h1 10, h2 42, **h3 380 patients (33%)**.
