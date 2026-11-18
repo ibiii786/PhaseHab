@@ -115,3 +115,20 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
   (0.24–0.25) is worse than the no-skill value 0.216.
 - Outputs: `outputs\compare\` metrics_table.csv, delong_tests.csv, oof_repeat_averaged.csv, figures\ (ROC, calibration,
   AUROC forest plot, phase-difference plot).
+
+## 2026-11-18 — Step 07: SHAP (`src\07_shap.py`, new `src\modelling.py`)
+
+- Moved pipeline classes + data loading to `src\modelling.py` (needed to load saved models); re-ran 05, results identical.
+- Development set only. Final models explained on train + val; fold models (25 folds) explained on held-out patients.
+- **Fused model, share of SHAP importance by phase (fold mean ± SD):** LR late 31 ± 5%, pre 30 ± 6%, early 24 ± 5%,
+  shape 16 ± 5%. XGBoost pre 37 ± 2%, early 28 ± 3%, late 28 ± 3%, shape 8 ± 3%. → All 3 phases contribute;
+  none dominates (matches the DeLong result).
+- **By habitat (fused LR):** h2 medium 33%, h1 low 30%, h3 high 19%, shape 18%. h3 is smallest partly because 33% of
+  patients have no h3 (imputed). Per-phase LR models: h2 leads for pre (43%) and early (52%), h1 for late (46%).
+- Final early-only LR model keeps just 1 feature (early_h2_ngtdm_Busyness); fold models keep more →
+  use fold-level shares in the thesis.
+- Top fused-LR features: pre_h2_glcm_ClusterProminence, shape_Maximum2DDiameterColumn (bigger → less pCR),
+  late_h2_glcm_ClusterShade, pre_h2_firstorder_Maximum, early_h2_glcm_MCC (all picked in ≥ 76% of folds).
+- Clinical + pre (final LR): clinical block 57%, pre-phase radiomics 43% of SHAP importance.
+- Outputs: `outputs\shap\` group_importance_{final,folds,summary}.csv, top_features_final.csv, final_shap_*.csv,
+  figures\ (phase shares, habitat shares, phase × habitat heatmap, beeswarm plots).

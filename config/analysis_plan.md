@@ -141,3 +141,12 @@ If we change anything later, we add a dated note at the bottom and say why. We d
 - Calibration: models trained with class_weight = balanced over-predict pCR (mean predicted ≈ 0.48 vs observed 0.32).
   AUROC is not affected. If probabilities are shown in the web app, a recalibration step must be added later
   (fit on development data only).
+
+### 2026-11-18 — SHAP details (07_shap.py)
+- Pipeline code moved from `05_train.py` to `src\modelling.py` so saved models can be loaded by any script
+  (05 re-run: CV metrics identical).
+- SHAP in log-odds. lr: LinearExplainer (independent features, background = training patients); xgb: TreeExplainer.
+- Group importance = mean over patients of |sum of SHAP values in the group|; share = group / sum of groups
+  (computed separately for each grouping, so shares from different groupings are not directly comparable).
+- Main SHAP result = fold models explained on their held-out patients (25 folds, mean ± SD), because the single final
+  refit depends on which few features LASSO happens to pick (e.g. the final early-only model uses 1 feature).
