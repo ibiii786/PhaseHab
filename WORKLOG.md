@@ -32,3 +32,17 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
 - Habitat K-means is fitted once on train + val voxels (label-free, test never used), with a per-fold ARI check.
 - Proposed primary classifier for the phase tests: L2 logistic regression after LASSO.
 - Test-set minimum detectable AUROC difference ≈ 0.15 (α 0.05), ≈ 0.17 (Holm α 0.0125).
+
+## 2026-11-18 — Part B: preprocessing (`src\02_preprocess.py`)
+
+- Resample to 1 mm (B-spline / nearest neighbour), Otsu + pre-contrast normalisation for all 3 phases,
+  crop to tumour + 10 mm. Output: `outputs\preprocessed\<pid>.npz` + `index.csv`.
+- Pilot (50 training patients): 0 errors; ~19 s per patient on one worker.
+- Full run (1,140 patients, 4 workers; PC has 2 cores / 4 threads): 0 errors, 81 min, 6.9 GB.
+  Tumour volume kept after resampling (median ratio 1.000, range 0.87–1.07; the extremes are tiny tumours).
+- QC (20 random + 3 watch patients, `outputs\qc\preprocess\`): masks on the enhancing tissue, phases aligned,
+  I-SPY1 sagittal geometry correct.
+- Decisions: ISPY2-553012 excluded; ISPY2-726091 and ISPY2-934459 kept (see plan decisions log).
+- Problems found: ISPY1_1156 (metadata "early" is a second pre-contrast scan) and ISPY1_1187 (saturated
+  pre-contrast voxels break normalisation). Decision pending.
+- Noted: many FTV masks contain scattered small specks outside the main tumour (median 40 pieces).

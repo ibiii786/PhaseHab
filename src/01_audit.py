@@ -1,4 +1,4 @@
-"""
+r"""
 01_audit.py - Cohort audit for PhaseHab (I-SPY1 + I-SPY2 only).
 
 What it does:

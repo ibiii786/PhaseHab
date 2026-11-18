@@ -89,3 +89,15 @@ If we change anything later, we add a dated note at the bottom and say why. We d
 
 ## Decisions log
 (Dated entries added after this plan was fixed.)
+
+### 2026-11-18 — QC after preprocessing (02_preprocess.py)
+- **ISPY2-553012: excluded** (as planned). The QC overlay shows the mask covers only a small corner of a much larger
+  enhancing tumour.
+- **ISPY2-726091: kept.** The mask sits on the enhancing tumour.
+- **ISPY2-934459: kept.** The mask covers the enhancing tumour, plus scattered small specks. Normal FTV masks have the same
+  specks (60 random patients: median 40 separate pieces, largest piece = 93% of voxels; this patient: 87 pieces, 88%).
+  The 4× difference from the trial's `mask_count` is probably a different counting or mask version; the mask itself is plausible.
+- **ISPY1_1156: decision pending.** The metadata "early" phase (acq1) is a second pre-contrast scan (no enhancement:
+  tumour mean 41.7 vs 41.9 on pre). The real early/late are acq2/acq3.
+- **ISPY1_1187: decision pending.** The pre-contrast image has saturated voxels (>0.1% at 65,535; median 41), which
+  breaks the Otsu normalisation (m = 43,935).

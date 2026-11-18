@@ -22,6 +22,11 @@ EXCLUDE = {
     "ISPY1_1228", "ISPY1_1192", "ISPY1_1038", "ISPY1_1194",
 }
 
+# Excluded from the analysis by config/analysis_plan.md (still preprocessed, for QC)
+EXCLUDE_ANALYSIS = {"ISPY2-553012"}   # mask on 1 slice only
+# "Check in QC" patients (0/255 masks, 4x the trial's mask_count)
+QC_CHECK = {"ISPY2-726091", "ISPY2-934459"}
+
 # Split codes in the metadata 'test' column
 SPLIT_NAMES = {0: "train", 1: "test", 2: "val"}
 
