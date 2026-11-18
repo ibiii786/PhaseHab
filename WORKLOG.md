@@ -76,3 +76,13 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
   → full run estimated at ~1 hour.
 - Each patient is saved to `parts\<pid>.json` at once; CSVs rebuilt every 100 patients; restart skips finished patients.
 - Full run: `code\run_features.bat` (double-click), started by the user outside Claude Code.
+
+## 2026-11-18 — Step 04: full feature run (k = 3)
+
+- Run by the user with `run_features.bat`: 1,118 patients in 83 min (+ 20 from the pilot), **0 errors**, no inf values.
+  Slowest patients (large tumours) took up to ~5 min each per worker.
+- `outputs\features\k3\`: pre / early / late .csv (1,138 rows × 279 features each), shape.csv (17 features).
+  Splits: 879 train, 131 val, 128 test. pCR rate 0.316.
+- Empty (NaN) habitat blocks: h1 10 patients, h2 42, h3 380 → 12.7% of phase feature values are NaN (imputed in folds).
+- Quick look (train + val, single features): the strongest features only reach AUROC ≈ 0.59 (e.g. early_h2_ngtdm_Strength),
+  so imaging signal per feature is weak.
