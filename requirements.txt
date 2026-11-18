@@ -17,3 +17,4 @@ joblib
 pyyaml
 openpyxl
 python-docx
+tabulate
