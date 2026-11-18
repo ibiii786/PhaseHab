@@ -99,3 +99,19 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
 - By cohort: imaging models work a little on I-SPY2 (0.56–0.59) but not on I-SPY1 (0.46–0.53).
 - Outputs in `outputs\models\`: oof_predictions.csv, cv_metrics.csv, cv_metrics_by_repeat.csv, cv_differences.csv,
   selected_features_*.csv, 13 refit models `<model>_k3_<lr|xgb>.joblib`, run_05_train.log.
+
+## 2026-11-18 — Step 06: statistical comparison (`src\06_compare.py`, `src\stats.py`)
+
+- Repeat-averaged OOF predictions, development set only (1,010). Test set not used.
+- **Primary result (lr, pooled, Holm over 4 tests): no significant phase difference.**
+  early − pre −0.019 (95% CI −0.056 to 0.018), early − late −0.012, late − pre −0.006, fused − pre +0.010;
+  all Holm p = 1.00. XGBoost: differences ≤ 0.024, all Holm p ≥ 0.75. Same picture in I-SPY1 and I-SPY2 alone.
+- AUROC (95% CI), lr pooled: clinical 0.675 (0.642–0.709), pre 0.578 (0.537–0.615), early 0.559 (0.520–0.598),
+  late 0.571 (0.532–0.610), fused 0.587 (0.545–0.626), clinical + pre 0.699 (0.665–0.732).
+- Every imaging model is significantly worse than clinical (−0.09 to −0.12, unadjusted p < 0.001).
+  Clinical + pre beats clinical by +0.024 (p = 0.044, unadjusted; lr only, not with xgb).
+- I-SPY1: imaging models at chance (0.45–0.50); clinical 0.74. I-SPY2: imaging 0.57–0.60; clinical 0.66.
+- Calibration: balanced class weights → probabilities too high (≈ +0.17 on average). Brier of imaging models
+  (0.24–0.25) is worse than the no-skill value 0.216.
+- Outputs: `outputs\compare\` metrics_table.csv, delong_tests.csv, oof_repeat_averaged.csv, figures\ (ROC, calibration,
+  AUROC forest plot, phase-difference plot).

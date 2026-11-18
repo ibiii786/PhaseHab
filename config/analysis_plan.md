@@ -129,3 +129,15 @@ If we change anything later, we add a dated note at the bottom and say why. We d
   subsample 0.8, colsample 0.5), balanced sample weights. Not tuned.
 - "Best single phase" for `clinical_best` and the "fused vs best phase" test = **pre** (mean CV AUROC 0.566 vs
   late 0.566 vs early 0.553). Pre and late are practically tied (difference 0.0006); the rule picked pre.
+
+### 2026-11-18 — Comparison details (06_compare.py)
+- DeLong (Sun & Xu 2014 fast algorithm, `src\stats.py`) on each patient's OOF probability averaged over 5 repeats.
+  Checked against sklearn AUROC and a 2,000-sample bootstrap (SE 0.0235 vs 0.0234 on simulated data).
+- Holm families: the 4 pre-registered tests with lr on the pooled data = **primary**. The same 4 tests with xgb, and
+  per cohort (I-SPY1, I-SPY2), are secondary / exploratory, each with its own Holm correction.
+  Imaging vs clinical and clinical + phase vs clinical are reported unadjusted (descriptive).
+- Youden threshold "chosen in training folds": for each fold, the threshold comes from the OOF predictions of the other
+  4 folds of the same repeat (that fold's training patients), then is applied to the fold.
+- Calibration: models trained with class_weight = balanced over-predict pCR (mean predicted ≈ 0.48 vs observed 0.32).
+  AUROC is not affected. If probabilities are shown in the web app, a recalibration step must be added later
+  (fit on development data only).
