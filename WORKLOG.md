@@ -143,3 +143,12 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
 - Outputs are now per k (`outputs\models\k{k}\`, `compare\k{k}\`, `shap\k{k}\`); `05_train.py` writes `DONE.txt`;
   `06_compare.py` takes `--k`. k = 3 re-run through the new paths to check it.
 - Pilot: 4 patients each for k = 2 (186 features per phase) and k = 4 (up to 372 per phase), 0 errors.
+
+## 2026-11-19 — Overnight k = 2 / k = 4 run finished; k = 3 kept
+
+- Features: k = 2 in 95 min, k = 4 in 95 min, 1,138 patients each, 0 errors. Training k = 2 8 min; training k = 4
+  paused ~9 h because the laptop lid was closed (Windows log: sleep reason "Button or Lid") and finished after wake-up.
+- Mean imaging CV AUROC (LR): k2 0.567, k3 0.565, k4 0.551. Fused LR: k2 0.592, k3 0.573, k4 0.556.
+  Clinical + best phase: k2 0.699, k3 0.686, k4 0.697.
+- Rule → **k = 3 stays** (k = 2 only +0.002). Best phase flips with k (k2 early, k3/k4 pre); phase gaps ≤ 0.017.
+- Fix: `run_overnight.py` now flushes each step log line to disk (the k = 4 log looked empty while running).

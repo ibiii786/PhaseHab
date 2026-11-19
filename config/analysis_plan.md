@@ -163,3 +163,9 @@ If we change anything later, we add a dated note at the bottom and say why. We d
 - Implemented in `src\choose_k.py`; run by `run_k2_k4_overnight.bat` → `outputs\models\k_selection.md`.
 - Output folders are now per k: `outputs\models\k{k}\`, `outputs\compare\k{k}\`, `outputs\shap\k{k}\`
   (the k = 3 results were moved into the k3 folders).
+
+### 2026-11-19 — k chosen: k = 3 (by the pre-fixed rule)
+- Mean imaging CV AUROC (LR): k = 2 0.567, k = 3 0.565, k = 4 0.551 (exploratory). k = 2 is only +0.002 above k = 3
+  (< 0.01), so **k = 3 stays the main k**. Details: `outputs\models\k_selection.md`.
+- The best single phase changes with k (k = 2 early, k = 3 pre, k = 4 pre) and all phase differences are ≤ 0.017:
+  a further sign that no phase is reliably better. k = 2 and k = 4 are reported as a sensitivity analysis.

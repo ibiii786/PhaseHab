@@ -71,6 +71,7 @@ def run_step(name, args, step_log=None):
             for line in proc.stdout:
                 print(line, end="", flush=True)
                 f.write(line)
+                f.flush()          # so the log on disk is always up to date
             rc = proc.wait()
     mins = (time.time() - t0) / 60
     if rc != 0:
