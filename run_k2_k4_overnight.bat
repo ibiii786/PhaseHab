@@ -1,11 +1,4 @@
 @echo off
-REM PhaseHab - overnight run for k = 2 and k = 4 habitats.
-REM   1-2. radiomics features for k = 2 and k = 4 (the slow part, about 3 hours)
-REM   3-4. cross-validated training for k = 2 and k = 4 (about 10-15 min each)
-REM   5.   choose k on cross-validation results -> outputs\models\k_selection.md
-REM Runs only on this PC: no internet and no Claude needed. The test set is never used.
-REM Double-click to start. Close the window to stop. Double-click again to continue:
-REM finished steps and finished patients are skipped.
 title PhaseHab - overnight k=2 / k=4
 cd /d "%~dp0"
 set OMP_NUM_THREADS=1

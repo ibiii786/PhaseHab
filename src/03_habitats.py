@@ -1,19 +1,3 @@
-r"""
-03_habitats.py - Population habitats with ONE K-means (config/analysis_plan.md, section 5).
-
-1. Sample up to 2,000 tumour voxels per DEVELOPMENT patient (train + val, never test), seed 42.
-   Voxel features = [pre, early, late] normalised intensities.
-2. Fit K-means (full, see fit_kmeans) for k = 2, 3, 4. Re-order clusters by mean early intensity
-   (habitat 1 = lowest enhancement). Save to outputs/habitats/kmeans_k{k}.joblib.
-3. Assign ALL tumour voxels of EVERY patient (incl. test) to the nearest centre.
-   Save outputs/habitats/k{k}/<pid>.npz (array 'hab': 0 = outside tumour, 1..k = habitat).
-4. Tables per k: voxels and % per habitat, flag habitats < 100 voxels.
-5. Report: centres with a plain meaning, silhouette score, small-habitat counts,
-   and the per-fold stability check (ARI) promised in the plan.
-6. QC overlays for 10 patients in outputs/qc/habitats/.
-
-Run from code\ :  .venv\Scripts\python.exe src\03_habitats.py
-"""
 import os
 import sys
 import time
@@ -21,18 +5,18 @@ import time
 import joblib
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-from joblib import Parallel, delayed  # noqa: E402
-from matplotlib.colors import ListedColormap  # noqa: E402
-from sklearn.cluster import KMeans  # noqa: E402
-from sklearn.metrics import adjusted_rand_score, silhouette_score  # noqa: E402
-from tqdm import tqdm  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed
+from matplotlib.colors import ListedColormap
+from sklearn.cluster import KMeans
+from sklearn.metrics import adjusted_rand_score, silhouette_score
+from tqdm import tqdm
 
 sys.path.insert(0, os.path.dirname(__file__))
-import cv  # noqa: E402
-import paths as P  # noqa: E402
+import cv
+import paths as P
 
 PRE = P.OUT / "preprocessed"
 OUT = P.OUT / "habitats"
@@ -41,11 +25,10 @@ KS = [2, 3, 4]
 N_SAMPLE = 2000
 MIN_VOX = 100
 JOBS = 4
-HAB_COLOURS = ["#2c7bb6", "#fdae61", "#d7191c", "#1a9641"]  # h1 blue, h2 orange, h3 red, h4 green
+HAB_COLOURS = ["#2c7bb6", "#fdae61", "#d7191c", "#1a9641"]
 
 
 def tumour_voxels(pid):
-    """(n_voxels, 3) array of [pre, early, late] inside the mask."""
     z = np.load(PRE / f"{pid}.npz")
     m = z["mask"] > 0
     return np.stack([z["pre"][m], z["early"][m], z["late"][m]], axis=1).astype(np.float32)
@@ -60,25 +43,19 @@ def sample_patient(pid, seed):
 
 
 def fit_kmeans(x, k):
-    # Standard (full) K-means, not MiniBatchKMeans: MiniBatch gave different clusters for different
-    # seeds on the SAME data (ARI 0.47-0.92), so it failed the plan's stability check for the wrong
-    # reason. Full K-means on ~2M x 3 voxels takes < 30 s and fits in memory.
     km = KMeans(n_clusters=k, random_state=P.SEED, n_init=10)
     km.fit(x)
-    # re-order so habitat 1 = lowest mean EARLY intensity
     order = np.argsort(km.cluster_centers_[:, 1])
     km.cluster_centers_ = km.cluster_centers_[order]
     return km
 
 
 def assign(centres, x):
-    """Nearest centre -> habitat label 1..k."""
     d = ((x[:, None, :] - centres[None, :, :]) ** 2).sum(-1)
     return d.argmin(1) + 1
 
 
 def describe(c, all_centres):
-    """Plain-English label for a centre [pre, early, late]."""
     pre, early, late = c
     lo, hi = np.percentile(all_centres[:, 1], [33, 67]) if len(all_centres) > 2 else (early, early)
     level = "low" if early <= lo else ("high" if early >= hi else "medium")
@@ -111,7 +88,7 @@ def map_patient(pid, centres_by_k):
 def qc_png(pid, k, row):
     z = np.load(PRE / f"{pid}.npz")
     hab = np.load(OUT / f"k{k}" / f"{pid}.npz")["hab"]
-    zz = int(np.argmax((hab > 0).sum(axis=(1, 2))))  # slice with the largest tumour area
+    zz = int(np.argmax((hab > 0).sum(axis=(1, 2))))
     stack = np.stack([z["pre"][zz], z["early"][zz], z["late"][zz]])
     vmin, vmax = np.percentile(stack, [1, 99.5])
     fig, ax = plt.subplots(1, 4, figsize=(15, 4.2))
@@ -144,7 +121,6 @@ def main():
     dev = cv.dev_patients(idx)
     print(f"Patients: {len(idx)} in analysis, {len(dev)} development (train + val) used to fit K-means")
 
-    # 1. sample voxels from development patients only
     res = Parallel(n_jobs=JOBS)(delayed(sample_patient)(p, P.SEED + i)
                                 for i, p in enumerate(tqdm(dev["pid"], desc="Sampling voxels")))
     samples = dict(res)
@@ -152,7 +128,6 @@ def main():
     owner = np.concatenate([np.full(len(samples[p]), i) for i, p in enumerate(dev["pid"])])
     print(f"Fitting on {len(X):,} voxels")
 
-    # 2. fit k = 2, 3, 4
     rng = np.random.default_rng(P.SEED)
     sil_idx = rng.choice(len(X), min(20000, len(X)), replace=False)
     models, report = {}, []
@@ -172,7 +147,6 @@ def main():
     centres.to_csv(OUT / "centres.csv", index=False)
     print(centres.to_string(index=False))
 
-    # 3. stability check (plan section 5): refit on the training part of each fold of repeat 1
     folds = [f for f in cv.dev_folds(dev) if f[0] == 0]
     stab = []
     for k in KS:
@@ -187,7 +161,6 @@ def main():
     stab.to_csv(OUT / "stability_ari.csv", index=False)
     print(stab.groupby("k")[["ARI", "max_centre_shift"]].agg(["min", "mean"]).round(3).to_string())
 
-    # 4. assign every patient (incl. test) with every k
     cen_by_k = {k: models[k].cluster_centers_.astype(np.float32) for k in KS}
     res = Parallel(n_jobs=JOBS)(delayed(map_patient)(p, cen_by_k)
                                 for p in tqdm(idx["pid"], desc="Assigning habitats"))
@@ -219,7 +192,6 @@ def main():
     small.to_csv(OUT / "small_habitats_summary.csv", index=False)
     print(small.to_string(index=False))
 
-    # 5. QC: 10 random patients (k = 3), plus k = 2 and 4 for the first 3 of them
     rng = np.random.default_rng(P.SEED)
     qc_ids = list(rng.choice(idx["pid"], 10, replace=False))
     for k in KS:

@@ -1,37 +1,3 @@
-r"""
-05_train.py - Train and cross-validate the models (config/analysis_plan.md, sections 2, 7 and 8).
-
-Development set = train + val (about 1,010 patients). The TEST SET IS NEVER LOADED HERE.
-CV = repeated stratified 5-fold, 5 repeats, strata pCR x subtype, seed 42 (src/cv.py, same folds as 03).
-
-Models (feature blocks from outputs/features/k{k}/):
-  clinical  HR, HER2, age, cohort (I-SPY2 = 1)
-  pre       pre_h*  features                 (no shape: shape is the same for every phase)
-  early     early_h* features
-  late      late_h*  features
-  fused     pre + early + late + shape
-  clinical_best   clinical + the best single phase (highest mean CV AUROC with the primary classifier)
-  clinical_arm    sensitivity analysis, I-SPY2 only: clinical + grouped treatment arm
-
-Classifiers (everything learned is inside an sklearn Pipeline, so it is fit on the training folds only):
-  lr   (PRIMARY) impute (median) -> rank-to-normal scaling -> drop near-constant -> drop |r| > 0.95
-       -> LASSO selection (L1 logistic, C chosen by inner 5-fold CV AUROC) -> L2 logistic (C by inner CV).
-       class_weight = balanced.
-  xgb  (secondary) impute -> drop near-constant -> drop |r| > 0.95 -> XGBoost (fixed, conservative settings,
-       balanced sample weights). No LASSO step: trees do their own selection.
-  The clinical model has only 4 inputs, so its lr pipeline skips the filters and LASSO.
-
-Outputs (outputs/models/k{k}/):
-  oof_predictions.csv     one row per patient x model x classifier x repeat (out-of-fold probability)
-  cv_metrics_by_repeat.csv, cv_metrics.csv (AUROC / AUPRC / Brier: mean +- SD over repeats,
-                          plus AUROC of the repeat-averaged OOF probability, pooled / I-SPY1 / I-SPY2)
-  cv_differences.csv      paired AUROC differences between models, per repeat (descriptive; tests are in 06)
-  selected_features_<model>_k{k}.csv   how often LASSO picked each feature over the 25 folds
-  <model>_k{k}_<classifier>.joblib     final pipeline refit on the full development set
-  DONE.txt                written last, so the overnight runner knows this k is finished
-
-Run from code\ :  .venv\Scripts\python.exe src\05_train.py [--k 3] [--jobs 4]
-"""
 import argparse
 import os
 import sys
@@ -44,12 +10,11 @@ from joblib import Parallel, delayed
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
 sys.path.insert(0, os.path.dirname(__file__))
-import cv  # noqa: E402
-import paths as P  # noqa: E402
-from modelling import fit_pipe, kept_names, load_data, make_pipeline  # noqa: E402
+import cv
+import paths as P
+from modelling import fit_pipe, kept_names, load_data, make_pipeline
 
 
-# ----------------------------------------------------------------------------- CV
 def run_fold(model, clf, kind, X, y, rep, fold, tr, va):
     pipe = fit_pipe(make_pipeline(kind, clf), X.iloc[tr], y[tr])
     prob = pipe.predict_proba(X.iloc[va])[:, 1]
@@ -78,7 +43,6 @@ def main():
     print(f"Development patients: {len(dev)} (pCR rate {y.mean():.3f}); test set not loaded. "
           f"{len(folds)} folds. Features: " + ", ".join(f"{m} {x.shape[1]}" for m, x in X.items()))
 
-    # job list: (model, classifier, kind, row subset)
     jobs = [("clinical", c, "small", None) for c in ["lr", "xgb"]]
     jobs += [(m, c, "big", None) for m in ["pre", "early", "late", "fused"] for c in ["lr", "xgb"]]
     jobs += [("clinical_arm", "lr", "small", is_spy2)]
@@ -94,7 +58,6 @@ def main():
 
     res = run(jobs)
 
-    # clinical + best single phase (chosen on CV AUROC of the primary classifier, never on test)
     def mean_auc(model):
         r = [x for x in res if x["model"] == model and x["classifier"] == "lr"]
         aucs = []
@@ -110,7 +73,6 @@ def main():
     X["clinical_best"] = pd.concat([X["clinical"], X[best]], axis=1)
     res += run([("clinical_best", c, "big", None) for c in ["lr", "xgb"]])
 
-    # ---- out-of-fold predictions
     rows = []
     for r in res:
         d = dev.iloc[r["idx"]][["pid", "dataset", "pCR", "subtype"]].copy()
@@ -120,7 +82,6 @@ def main():
     oof = pd.concat(rows, ignore_index=True)
     oof.to_csv(out / "oof_predictions.csv", index=False)
 
-    # ---- metrics per repeat, and of the repeat-averaged probability
     per_rep = []
     for (m, c, rep), g in oof.groupby(["model", "classifier", "repeat"]):
         for cohort, gg in [("pooled", g), ("spy1", g[g.dataset == "spy1"]), ("spy2", g[g.dataset == "spy2"])]:
@@ -150,7 +111,6 @@ def main():
                                           key=lambda s: s.map(order) if s.name == "model" else s)
     summ.round(4).to_csv(out / "cv_metrics.csv", index=False)
 
-    # ---- paired differences per repeat (descriptive; DeLong + Holm in 06_compare.py)
     pairs = [("early", "pre"), ("early", "late"), ("late", "pre"), ("fused", best), ("pre", "clinical"),
              ("early", "clinical"), ("late", "clinical"), ("clinical_best", "clinical")]
     pooled = per_rep[per_rep.cohort == "pooled"].set_index(["model", "classifier", "repeat"])["AUROC"]
@@ -163,7 +123,6 @@ def main():
     diffs = pd.DataFrame(diffs).round(4)
     diffs.to_csv(out / "cv_differences.csv", index=False)
 
-    # ---- how often LASSO picked each feature
     for m in ["pre", "early", "late", "fused", "clinical_best"]:
         sel = [r["selected"] for r in res if r["model"] == m and r["classifier"] == "lr"]
         s = pd.Series([f for fs in sel for f in fs]).value_counts().rename("folds_selected")
@@ -171,7 +130,6 @@ def main():
         s["fraction"] = (s["folds_selected"] / len(sel)).round(3)
         s.rename_axis("feature").to_csv(out / f"selected_features_{m}_k{args.k}.csv")
 
-    # ---- refit every model on the full development set and save it
     final = [("clinical", c, "small") for c in ["lr", "xgb"]]
     final += [(m, c, "big") for m in ["pre", "early", "late", "fused", "clinical_best"] for c in ["lr", "xgb"]]
     final += [("clinical_arm", "lr", "small")]

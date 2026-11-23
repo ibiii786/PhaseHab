@@ -1,23 +1,3 @@
-r"""
-04_features.py - PyRadiomics features per phase x habitat (config/analysis_plan.md, section 6).
-
-For every patient:
-  - for each phase (pre, early, late) and each habitat h = 1..k:
-      run PyRadiomics (config/radiomics.yaml) on the habitat region.
-      Habitat < 100 voxels -> features left empty (NaN).
-      Names: <phase>_h<h>_<class>_<feature>, e.g. early_h2_glcm_Contrast
-  - shape features once on the whole tumour mask: shape_<feature>
-    + habitat volume fractions: shape_habfrac_h<h>
-Each patient is saved to outputs/features/k{k}/parts/<pid>.json as soon as it is done, so a crash
-loses nothing and a restart skips finished patients (only if the yaml did not change).
-Every 100 patients and at the end the parts are combined into pre.csv, early.csv, late.csv, shape.csv.
-
-Run from code\ :
-  .venv\Scripts\python.exe src\04_features.py --k 3 --check-bins     (choose binWidth, no extraction)
-  .venv\Scripts\python.exe src\04_features.py --k 3 --pilot 20
-  .venv\Scripts\python.exe src\04_features.py --k 3 --jobs 4         (all; used by run_features.bat)
-  .venv\Scripts\python.exe src\04_features.py --k 3 --combine-only
-"""
 import argparse
 import hashlib
 import json
@@ -33,28 +13,28 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 sys.path.insert(0, os.path.dirname(__file__))
-import cv  # noqa: E402
-import paths as P  # noqa: E402
+import cv
+import paths as P
 
 PRE = P.OUT / "preprocessed"
 YAML = P.CODE / "config" / "radiomics.yaml"
 MIN_VOX = 100
 CLIN_COLS = ["pid", "dataset", "split", "pCR", "subtype", "HR", "HER2", "age", "arm"]
 
-_EXT = {}  # per-worker cache of PyRadiomics extractors
+_EXT = {}
 
 
 def yaml_hash():
-    return hashlib.md5(YAML.read_bytes()).hexdigest()[:10]
+    import yaml
+    cfg = yaml.safe_load(YAML.read_text(encoding="utf-8"))
+    return hashlib.md5(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:10]
 
 
 def extractors():
-    """Create the two extractors once per worker process."""
     if not _EXT:
         import SimpleITK as sitk
         from radiomics import featureextractor
         sitk.ProcessObject.SetGlobalDefaultNumberOfThreads(1)
-        # glcm_MCC uses eigenvalues; PyRadiomics drops a tiny imaginary part (known, harmless)
         import warnings
         warnings.filterwarnings("ignore", message="Casting complex values")
         logging.getLogger("radiomics").setLevel(logging.ERROR)
@@ -73,12 +53,11 @@ def to_img(arr, sitk):
 
 
 def clean(result, prefix):
-    """PyRadiomics dict -> {prefix_class_feature: float}, dropping diagnostics."""
     out = {}
     for key, val in result.items():
         if key.startswith("diagnostics_"):
             continue
-        name = key.replace("original_", "", 1)      # e.g. glcm_Contrast, shape_Sphericity
+        name = key.replace("original_", "", 1)
         out[f"{prefix}_{name}" if prefix else name] = float(val)
     return out
 
@@ -103,15 +82,14 @@ def process(pid, k, out_dir, h):
         for hh, m in masks.items():
             try:
                 res[phase].update(clean(E["tex"].execute(img, m, label=1), f"{phase}_h{hh}"))
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 res["errors"].append(f"{phase}_h{hh}: {e!r}")
 
     try:
         whole = to_img((hab > 0).astype(np.uint8), sitk)
-        # shape does not depend on intensities; the image is only needed for geometry
         shp = E["shp"].execute(to_img(z["early"].astype(np.float32), sitk), whole, label=1)
-        res["shape"].update(clean(shp, None))     # names: shape_<feature>
-    except Exception as e:  # noqa: BLE001
+        res["shape"].update(clean(shp, None))
+    except Exception as e:
         res["errors"].append(f"shape: {e!r}")
 
     res["seconds"] = round(time.time() - t0, 2)
@@ -128,7 +106,6 @@ def clinical_table():
 
 
 def combine(out_dir, h):
-    """parts/*.json -> pre.csv, early.csv, late.csv, shape.csv (only parts made with the current yaml)."""
     clin = clinical_table()
     blocks = {b: [] for b in ["pre", "early", "late", "shape"]}
     n = 0
@@ -148,7 +125,6 @@ def combine(out_dir, h):
 
 
 def check_bins(k):
-    """Range of normalised intensity inside each habitat region, on TRAINING patients only."""
     idx = cv.load_index()
     tr = idx[idx["split"] == "train"]
     rows = []
@@ -223,7 +199,7 @@ def main():
             return False
         try:
             return json.loads(f.read_text()).get("yaml") == h
-        except Exception:  # noqa: BLE001  (half-written file after a crash -> redo)
+        except Exception:
             return False
 
     todo = [p for p in todo_all if not done(p)]

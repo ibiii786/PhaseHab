@@ -1,18 +1,5 @@
-# PhaseHab PyRadiomics settings (config/analysis_plan.md, section 6). Fixed 2026-11-18, before any model.
-#
-# Images are already resampled to 1 mm isotropic and normalised per patient (02_preprocess.py):
-# all 3 phases are in units of "pre-contrast foreground SD", so ONE fixed bin width fits all phases.
-#
-# binWidth = 0.1 (normalised units). Reason, from TRAINING patients only (outputs/features/k3/bin_check.csv,
-# 2,302 habitat regions x 3 phases, k = 3): intensity range inside a habitat has median 3.9 (pre), 6.9 (early),
-# 7.2 (late). With binWidth 0.1 the median number of bins is 39 / 70 / 72, and 90% of all regions get
-# 30-130 bins (pre 85%, early 92%, late 93%). 0.05 gives too many bins for early/late (median ~140);
-# 0.15 or more gives too few for pre (median <= 26).
-#
-# Shape features are run separately on the whole tumour mask (04_features.py), not per phase.
-
 imageType:
-  Original: {}            # no filters (wavelet / LoG) for now
+  Original: {}
 
 featureClass:
   firstorder:
@@ -24,9 +11,9 @@ featureClass:
 
 setting:
   binWidth: 0.1
-  normalize: false        # already normalised in 02_preprocess.py
-  resampledPixelSpacing:  # none: already 1 x 1 x 1 mm
-  force2D: false          # full 3D texture
+  normalize: false
+  resampledPixelSpacing:
+  force2D: false
   label: 1
   voxelArrayShift: 0
   correctMask: false

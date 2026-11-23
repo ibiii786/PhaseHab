@@ -1,50 +1,27 @@
-r"""
-06_compare.py - Statistical comparison of the CV models (config/analysis_plan.md, section 8).
-
-Input: outputs/models/k{k}/oof_predictions.csv (from 05_train.py; development set only, test never used).
-Each patient's out-of-fold probability is averaged over the 5 repeats (plan section 8), then:
-
-1. Metrics per model x classifier x cohort (pooled / I-SPY1 / I-SPY2):
-   AUROC with DeLong 95% CI and stratified bootstrap 95% CI (2,000 resamples), AUPRC and Brier with bootstrap CIs,
-   calibration-in-the-large and calibration slope.
-2. Threshold metrics: sensitivity, specificity, F1 at the Youden threshold. For each fold the threshold is chosen
-   on the OOF predictions of the OTHER 4 folds of the same repeat (= that fold's training patients), then applied
-   to the fold. Mean +- SD over the 5 repeats.
-3. DeLong tests. PRIMARY family (lr, pooled), Holm over exactly 4 tests:
-   early vs pre, early vs late, late vs pre, fused vs best single phase.
-   Same 4 tests for xgb (secondary) and per cohort (exploratory), each with its own Holm correction.
-   Extra, unadjusted, descriptive: each phase vs clinical, clinical + best phase vs clinical,
-   clinical + arm vs clinical (I-SPY2 only).
-4. Figures (outputs/compare/k{k}/figures/): ROC curves, calibration curves, AUROC forest plot, phase differences.
-Outputs: outputs/compare/k{k}/.
-
-Run from code\ :  .venv\Scripts\python.exe src\06_compare.py [--k 3]
-"""
 import argparse
 import os
 import sys
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-from joblib import Parallel, delayed  # noqa: E402
-from sklearn.calibration import calibration_curve  # noqa: E402
-from sklearn.metrics import (average_precision_score, brier_score_loss, f1_score, roc_curve)  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed
+from sklearn.calibration import calibration_curve
+from sklearn.metrics import (average_precision_score, brier_score_loss, f1_score, roc_curve)
 
 sys.path.insert(0, os.path.dirname(__file__))
-import paths as P  # noqa: E402
-import stats as S  # noqa: E402
+import paths as P
+import stats as S
 
-MOD = OUT = FIG = None   # set in main() from --k
+MOD = OUT = FIG = None
 N_BOOT = 2000
 COHORTS = ["pooled", "spy1", "spy2"]
 MODELS = ["clinical", "pre", "early", "late", "fused", "clinical_best", "clinical_arm"]
 LABEL = {"clinical": "Clinical", "pre": "Pre-contrast", "early": "Early post", "late": "Late post",
          "fused": "Fused (3 phases + shape)", "clinical_best": "Clinical + best phase",
          "clinical_arm": "Clinical + arm (I-SPY2)"}
-# categorical palette, fixed order (validated with the dataviz validator; legend + line style as 2nd channel)
 COLOUR = {"pre": "#2a78d6", "early": "#eb6834", "late": "#1baf7a", "fused": "#eda100", "clinical": "#e87ba4"}
 STYLE = {"pre": "-", "early": "--", "late": "-.", "fused": ":", "clinical": (0, (5, 1, 1, 1))}
 INK, MUTED, GRID = "#1f1f1e", "#6b6a64", "#e4e3de"
@@ -64,7 +41,6 @@ def style_axes(ax):
     ax.set_axisbelow(True)
 
 
-# ----------------------------------------------------------------------------- 1. metrics
 def model_metrics(m, c, cohort, g, boot_idx):
     y, p = g["pCR"].to_numpy(), g["prob"].to_numpy()
     auc, lo, hi = S.delong_ci(y, p)
@@ -77,7 +53,6 @@ def model_metrics(m, c, cohort, g, boot_idx):
     return row
 
 
-# ----------------------------------------------------------------------------- 2. thresholds
 def threshold_metrics(oof):
     rows = []
     for (m, c, rep), g in oof.groupby(["model", "classifier", "repeat"]):
@@ -104,7 +79,6 @@ def threshold_metrics(oof):
         F1_mean=("F1", "mean"), F1_sd=("F1", "std")).reset_index()
 
 
-# ----------------------------------------------------------------------------- 3. tests
 def run_tests(avg, best):
     primary = [("early", "pre"), ("early", "late"), ("late", "pre"), ("fused", best)]
     extra = [("pre", "clinical"), ("early", "clinical"), ("late", "clinical"), ("fused", "clinical"),
@@ -128,7 +102,6 @@ def run_tests(avg, best):
             for r in block:
                 r["p_holm"] = next(adj) if r["family"] != "extra (unadjusted)" else np.nan
             rows += block
-    # clinical + arm vs clinical, I-SPY2 only, lr
     ga = avg[(avg.model == "clinical_arm") & (avg.classifier == "lr")].set_index("pid")
     gb = avg[(avg.model == "clinical") & (avg.classifier == "lr")].set_index("pid").loc[ga.index]
     t = S.delong_test(ga["pCR"].to_numpy(), ga["prob"].to_numpy(), gb["prob"].to_numpy())
@@ -137,7 +110,6 @@ def run_tests(avg, best):
     return pd.DataFrame(rows)
 
 
-# ----------------------------------------------------------------------------- 4. figures
 def fig_roc(avg, clf, cohort, path):
     fig, ax = plt.subplots(figsize=(5.6, 5.2))
     ax.plot([0, 1], [0, 1], color=MUTED, linewidth=1, linestyle=(0, (2, 3)))
@@ -250,7 +222,6 @@ def fig_differences(tests, path):
     plt.close(fig)
 
 
-# ----------------------------------------------------------------------------- main
 def main():
     global MOD, OUT, FIG
     ap = argparse.ArgumentParser()
@@ -271,7 +242,6 @@ def main():
         pCR=("pCR", "first"), prob=("prob", "mean"))
     avg.to_csv(OUT / "oof_repeat_averaged.csv", index=False)
 
-    # 1. metrics with CIs (same bootstrap samples for every model within a cohort, so CIs are comparable)
     ref = avg[(avg.model == "clinical") & (avg.classifier == "lr")].sort_values("pid")
     tasks = []
     for cohort in COHORTS + ["spy2_arm"]:
@@ -293,11 +263,9 @@ def main():
     met = met.sort_values(["cohort", "classifier", "order"]).drop(columns="order")
     met.round(4).to_csv(OUT / "metrics_table.csv", index=False)
 
-    # 3. tests
     tests = run_tests(avg, best)
     tests.round(4).to_csv(OUT / "delong_tests.csv", index=False)
 
-    # 4. figures
     for clf in ["lr", "xgb"]:
         fig_roc(avg, clf, "pooled", FIG / f"roc_pooled_{clf}.png")
         fig_calibration(avg, clf, FIG / f"calibration_pooled_{clf}.png")
@@ -306,7 +274,6 @@ def main():
     fig_forest(met, FIG / "auroc_forest.png")
     fig_differences(tests, FIG / "phase_differences.png")
 
-    # console summary
     cols = ["model", "classifier", "AUROC", "AUROC_lo", "AUROC_hi", "AUPRC", "Brier", "Brier_no_skill",
             "slope", "citl", "sens_mean", "spec_mean", "F1_mean"]
     print("\nPOOLED (repeat-averaged OOF)\n" + met[met.cohort == "pooled"][cols].round(3).to_string(index=False))

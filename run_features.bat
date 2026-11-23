@@ -1,7 +1,4 @@
 @echo off
-REM PhaseHab - full radiomics feature extraction (k = 3).
-REM Double-click to start. Close the window to stop. Double-click again to continue:
-REM patients that are already finished are skipped.
 title PhaseHab - radiomics features (k=3)
 cd /d "%~dp0"
 set OMP_NUM_THREADS=1

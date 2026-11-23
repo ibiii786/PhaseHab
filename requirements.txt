@@ -1,6 +1,3 @@
-# PhaseHab research pipeline (Python 3.12, Windows)
-# PyRadiomics is installed separately from GitHub (see SETUP.md / CLAUDE.md):
-#   pip install git+https://github.com/AIM-Harvard/pyradiomics
 numpy
 pandas
 scipy

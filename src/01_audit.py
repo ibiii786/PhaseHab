@@ -1,18 +1,3 @@
-r"""
-01_audit.py - Cohort audit for PhaseHab (I-SPY1 + I-SPY2 only).
-
-What it does:
-  1. Patient counts per cohort and split, with pCR+/pCR- and HR/HER2 subtypes.
-  2. I-SPY2 treatment arms per split (joined from the TCIA metadata).
-  3. For every patient: do the 3 phase scans + mask exist, and do their headers
-     have the same shape?
-  4. Loads each mask: tumour voxel count and real volume in mm3
-     (using xy_spacing and slice_thick from the metadata, NOT the NIfTI header).
-  5. Spacing summary per cohort and a suggested common resampling grid.
-  6. Writes CSV tables + audit_summary.md to outputs/audit/.
-
-Run from code\ :  .venv\Scripts\python.exe src\01_audit.py
-"""
 import os
 import sys
 import time
@@ -24,22 +9,16 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 sys.path.insert(0, os.path.dirname(__file__))
-import paths as P  # noqa: E402
+import paths as P
 
 OUT = P.OUT / "audit"
 OUT.mkdir(parents=True, exist_ok=True)
 
-# Hand-written notes on how the masks were made (step 4). Kept in the repo so
-# re-running this script never loses them.
 MASK_NOTES = P.CODE / "docs" / "mask_origin.md"
 
-# Candidate isotropic grids to compare (mm)
 GRID_CANDIDATES = [1.0, 1.5, 2.0]
 
 
-# ---------------------------------------------------------------------------
-# Load metadata
-# ---------------------------------------------------------------------------
 def load_metadata():
     meta = pd.read_csv(P.META_MAIN)
     meta = meta[meta["dataset"].isin(["spy1", "spy2"])].copy()
@@ -52,9 +31,6 @@ def load_metadata():
     return meta.reset_index(drop=True), excluded, n_all
 
 
-# ---------------------------------------------------------------------------
-# Tables 1 + 2: counts
-# ---------------------------------------------------------------------------
 def count_tables(meta):
     def summarise(g):
         return pd.Series({
@@ -87,7 +63,6 @@ def arm_table(meta):
     s2 = meta[meta["dataset"] == "spy2"].merge(
         tcia[["pid", "Arm", "pCR", "HR", "HER2", "manufacturer"]],
         on="pid", how="left", suffixes=("", "_tcia"))
-    # Sanity: do labels agree between the two tables?
     checks = {
         "spy2_patients": len(s2),
         "missing_in_tcia": int(s2["Arm"].isna().sum()),
@@ -105,9 +80,6 @@ def arm_table(meta):
     return arms, manu.reset_index(), checks
 
 
-# ---------------------------------------------------------------------------
-# Table 3 + 4: per-patient file checks and tumour size (runs in parallel)
-# ---------------------------------------------------------------------------
 def check_patient(row):
     t0 = time.time()
     pid, ds = row["pid"], row["dataset"]
@@ -128,8 +100,8 @@ def check_patient(row):
             problems.append(f"{phase}: file missing ({f.name})")
             continue
         try:
-            shapes[phase] = tuple(nib.load(str(f)).shape)  # header only, lazy
-        except Exception as e:  # noqa: BLE001
+            shapes[phase] = tuple(nib.load(str(f)).shape)
+        except Exception as e:
             problems.append(f"{phase}: cannot read header ({e})")
 
     mf = P.mask_path(pid, ds)
@@ -152,19 +124,16 @@ def check_patient(row):
                 problems.append("mask: empty (0 tumour voxels)")
             if len(vals) > 2:
                 problems.append(f"mask: not binary ({len(vals)} distinct values)")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             problems.append(f"mask: cannot read ({e})")
 
     for k, s in shapes.items():
         res[f"{k}_shape"] = "x".join(map(str, s))
     if len(set(shapes.values())) > 1:
         problems.append("shape mismatch: " + ", ".join(f"{k}={v}" for k, v in shapes.items()))
-    # Info only: cropped files usually have a few more slices than metadata n_z,
-    # so this is NOT treated as a problem.
     if "mask" in shapes and pd.notna(row["n_z"]):
         res["file_minus_meta_nz"] = shapes["mask"][0] - int(row["n_z"])
 
-    # Real volume from metadata spacing
     xy, z = row["xy_spacing"], row["slice_thick"]
     res["xy_spacing"], res["slice_thick"] = xy, z
     if "tumour_voxels" in res and pd.notna(xy) and pd.notna(z):
@@ -187,9 +156,6 @@ def run_checks(meta):
     return pd.DataFrame(results)
 
 
-# ---------------------------------------------------------------------------
-# Table 5: spacing and grid suggestion
-# ---------------------------------------------------------------------------
 def spacing_tables(chk):
     both = pd.concat([chk, chk.assign(dataset="pooled")])
     rows = []
@@ -205,7 +171,6 @@ def spacing_tables(chk):
     vals = (both.assign(xy=both["xy_spacing"].round(3), z=both["slice_thick"].round(2))
             .groupby(["dataset", "z"]).size().rename("n_patients").reset_index())
 
-    # How many voxels would each tumour have at each candidate isotropic grid?
     grid_rows = []
     for g_mm in GRID_CANDIDATES:
         v = chk["tumour_mm3"] / g_mm ** 3
@@ -220,9 +185,6 @@ def spacing_tables(chk):
     return summ, vals, grid
 
 
-# ---------------------------------------------------------------------------
-# Summary in plain English
-# ---------------------------------------------------------------------------
 def md_table(df):
     return df.to_markdown(index=False)
 
@@ -296,7 +258,6 @@ def write_summary(meta, excluded, n_all, counts, sub, arms, manu, arm_checks,
              f"so our spacing maths is correct.\n")
     off[["pid", "dataset", "tumour_voxels", "tumour_mm3", "meta_tum_vol"]].assign(
         ratio=ratio[off.index].round(3)).to_csv(OUT / "volume_mismatch.csv", index=False)
-    # Patients to watch: masks on very few slices, or volume far from the metadata value
     thin = chk[chk["tumour_slices"] <= 2]
     watch = pd.concat([
         thin.assign(reason=lambda d: "tumour on only " + d["tumour_slices"].astype(str) + " slice(s): mask may be broken"),
@@ -348,7 +309,6 @@ def write_summary(meta, excluded, n_all, counts, sub, arms, manu, arm_checks,
     (OUT / "audit_summary.md").write_text("\n".join(L) + "\n", encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------
 def main():
     t0 = time.time()
     meta, excluded, n_all = load_metadata()
@@ -360,7 +320,6 @@ def main():
     chk = run_checks(meta)
     problems = chk[chk["n_problems"] > 0].sort_values("pid")
 
-    # Tumour size summary
     rows = []
     for ds, g in pd.concat([chk, chk.assign(dataset="pooled")]).groupby("dataset"):
         for col in ["tumour_voxels", "tumour_mm3"]:
@@ -375,7 +334,6 @@ def main():
 
     spacing, spacing_vals, grid = spacing_tables(chk)
 
-    # Save CSVs
     excluded.to_csv(OUT / "excluded_patients.csv", index=False)
     counts.to_csv(OUT / "cohort_split_counts.csv", index=False)
     sub.to_csv(OUT / "subtype_counts.csv", index=False)

@@ -1,20 +1,3 @@
-r"""
-02_preprocess.py - Resample, normalise and crop every patient (see config/analysis_plan.md, sections 3-4).
-
-For each patient:
-  1. Load pre / early / late + mask (NIfTI arrays are (z, y, x)).
-  2. Set the REAL spacing from the metadata (headers wrongly say 1 mm).
-  3. Resample to 1 mm isotropic: images B-spline, mask nearest neighbour on mask > 0.
-  4. Normalise: foreground = pre voxels above Otsu (whole crop); m, s = mean/std of pre over
-     the foreground; apply (x - m) / s to ALL three phases.
-  5. Crop to the tumour bounding box + 10 mm margin.
-  6. Save outputs/preprocessed/<pid>.npz and a row in index.csv.
-QC overlays (3 phases + mask outline) for 20 random patients + the watch patients.
-
-Run from code\ :
-  .venv\Scripts\python.exe src\02_preprocess.py --pilot 50     (50 training patients)
-  .venv\Scripts\python.exe src\02_preprocess.py                (all patients)
-"""
 import argparse
 import os
 import sys
@@ -22,32 +5,30 @@ import time
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import nibabel as nib  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-import SimpleITK as sitk  # noqa: E402
-from joblib import Parallel, delayed  # noqa: E402
-from tqdm import tqdm  # noqa: E402
+import matplotlib.pyplot as plt
+import nibabel as nib
+import numpy as np
+import pandas as pd
+import SimpleITK as sitk
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
 sys.path.insert(0, os.path.dirname(__file__))
-import paths as P  # noqa: E402
+import paths as P
 
 OUT = P.OUT / "preprocessed"
 QC_DIR = P.OUT / "qc" / "preprocess"
-NEW_SPACING = 1.0   # mm, isotropic
-MARGIN_MM = 10      # crop margin around the tumour
+NEW_SPACING = 1.0
+MARGIN_MM = 10
 N_QC_RANDOM = 20
 WATCH = P.EXCLUDE_ANALYSIS | P.QC_CHECK | set(P.PHASE_OVERRIDE)
 
 
-# ---------------------------------------------------------------------------
 def load_array(path):
     return np.asanyarray(nib.load(str(path)).dataobj).astype(np.float32)
 
 
 def to_sitk(arr, xy, z):
-    """numpy (z, y, x) -> SimpleITK image with the real spacing (x, y, z)."""
     img = sitk.GetImageFromArray(arr)
     img.SetSpacing((float(xy), float(xy), float(z)))
     return img
@@ -62,13 +43,12 @@ def resample(img, interp):
 
 
 def qc_png(pid, row, pre, early, late, mask, m, s, note=""):
-    """Middle tumour slice: 3 phases side by side with the mask outline."""
     zs = np.where(mask.any(axis=(1, 2)))[0]
     if len(zs) == 0:
         return
     z = int(zs[len(zs) // 2])
     stack = np.stack([pre[z], early[z], late[z]])
-    vmin, vmax = np.percentile(stack, [1, 99.5])  # SAME window for all 3 phases
+    vmin, vmax = np.percentile(stack, [1, 99.5])
     fig, ax = plt.subplots(1, 3, figsize=(12, 4.4))
     for a, im, name in zip(ax, stack, ["pre", "early", "late"]):
         a.imshow(im, cmap="gray", vmin=vmin, vmax=vmax)
@@ -82,22 +62,19 @@ def qc_png(pid, row, pre, early, late, mask, m, s, note=""):
     plt.close(fig)
 
 
-# ---------------------------------------------------------------------------
 def process(row, make_qc):
     t0 = time.time()
     pid, ds = row["pid"], row["dataset"]
     xy, zt = row["xy_spacing"], row["slice_thick"]
 
-    # 1-3: load and resample
     imgs = {}
-    acqs = {phase: P.phase_acq(row, phase) for phase in P.PHASES}  # includes QC corrections
+    acqs = {phase: P.phase_acq(row, phase) for phase in P.PHASES}
     for phase, acq in acqs.items():
         arr = load_array(P.scan_path(pid, ds, acq))
         imgs[phase] = sitk.GetArrayFromImage(resample(to_sitk(arr, xy, zt), sitk.sitkBSpline))
     mraw = (load_array(P.mask_path(pid, ds)) > 0).astype(np.uint8)
     mask = sitk.GetArrayFromImage(resample(to_sitk(mraw, xy, zt), sitk.sitkNearestNeighbor))
 
-    # 4: normalisation from the pre-contrast image only
     pre_img = sitk.GetImageFromArray(imgs["pre"])
     otsu = sitk.OtsuThresholdImageFilter()
     otsu.SetInsideValue(0)
@@ -114,7 +91,6 @@ def process(row, make_qc):
         note = "[WATCH]" if pid in WATCH else ""
         qc_png(pid, row, imgs["pre"], imgs["early"], imgs["late"], mask, m, s, note)
 
-    # 5: crop around the tumour + margin
     nz = np.argwhere(mask > 0)
     full_shape = mask.shape
     if len(nz):
@@ -124,7 +100,6 @@ def process(row, make_qc):
         lo, hi = np.zeros(3, int), np.array(full_shape)
     sl = tuple(slice(a, b) for a, b in zip(lo, hi))
 
-    # 6: save
     np.savez_compressed(
         OUT / f"{pid}.npz",
         pre=imgs["pre"][sl], early=imgs["early"][sl], late=imgs["late"][sl],
@@ -153,11 +128,10 @@ def process(row, make_qc):
 def safe_process(row, make_qc):
     try:
         return process(row, make_qc)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return {"pid": row["pid"], "dataset": row["dataset"], "split": row["split"], "error": repr(e)}
 
 
-# ---------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pilot", type=int, default=0, help="only N random training patients")
@@ -197,7 +171,6 @@ def main():
     wall = time.time() - t0
 
     if args.only and (OUT / index_name).exists():
-        # replace just these rows in the existing index, keep the original order
         old = pd.read_csv(OUT / index_name)
         full = pd.concat([old[~old["pid"].isin(res["pid"])], res])
         full = full.set_index("pid").loc[old["pid"]].reset_index()

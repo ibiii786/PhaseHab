@@ -1,24 +1,10 @@
-r"""
-choose_k.py - Compare the number of habitats k = 2, 3, 4 on CROSS-VALIDATION results only (never the test set).
-
-Rule (written in config/analysis_plan.md on 2026-11-18, BEFORE the k = 2 and k = 4 results existed):
-  1. Eligible k = passes the habitat stability rule (minimum per-fold ARI >= 0.90): k = 2 and k = 3.
-     k = 4 (min ARI 0.898) would need per-fold K-means, which is too slow, so it is reported as exploratory only.
-  2. Score = mean pooled CV AUROC (primary LR) of the 4 imaging models: pre, early, late, fused.
-  3. k = 3 stays the main k unless another eligible k scores at least 0.01 higher.
-
-Inputs : outputs/models/k{k}/cv_metrics.csv and cv_differences.csv, outputs/habitats/stability_ari.csv and
-         small_habitats_summary.csv
-Outputs: outputs/models/k_selection.csv and outputs/models/k_selection.md (plain-English summary)
-Run from code\ :  .venv\Scripts\python.exe src\choose_k.py
-"""
 import os
 import sys
 
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
-import paths as P  # noqa: E402
+import paths as P
 
 KS = [2, 3, 4]
 DEFAULT_K = 3
@@ -78,7 +64,6 @@ def main():
     dd = pd.concat(diffs, ignore_index=True)
     dd.to_csv(mdir / "k_selection_phase_differences.csv", index=False)
 
-    # plain-English report
     lines = ["# Choice of k (number of habitats) - cross-validation only, test set not used", "",
              "Rule (fixed before the k = 2 / k = 4 results): eligible k must pass the stability check (min ARI >= 0.90);",
              "score = mean pooled CV AUROC of the pre, early, late and fused LR models; k = 3 stays unless another",

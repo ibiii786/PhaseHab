@@ -1,27 +1,3 @@
-r"""
-07_shap.py - SHAP explanations, summed by phase and by habitat (config/analysis_plan.md, design rule 8).
-
-SHAP explains what the MODEL uses. It does not prove biology.
-Development set only (train + val). The test set is never loaded.
-
-Two views:
-A. FINAL models (refit on the whole development set by 05_train.py), explained on the development patients.
-   Models: pre, early, late, fused, clinical_best (lr = primary) and fused (xgb).
-B. FOLD models: the same pipeline refit in each of the 25 CV training folds and explained on that fold's
-   held-out patients. This shows how stable the phase / habitat shares are (LASSO picks different features
-   in different folds). Models: pre, early, late, fused (lr) and fused (xgb).
-
-SHAP values are in log-odds. lr: LinearExplainer (background = training patients, independent features).
-xgb: TreeExplainer. Features are those that reach the classifier (after the filters and, for lr, LASSO).
-
-Group importance: for every patient, add the SHAP values of all features in a group (e.g. all "early" features),
-then take the mean of the absolute value over patients. Share = group importance / sum over groups.
-Groupings: phase (pre / early / late / shape / clinical), habitat (h1 / h2 / h3 / shape / clinical),
-phase x habitat (e.g. early_h2) and feature class (firstorder, glcm, ...).
-
-Outputs: outputs/shap/k{k}/ (CSV tables + figures/).
-Run from code\ :  .venv\Scripts\python.exe src\07_shap.py [--k 3] [--jobs 4]
-"""
 import argparse
 import os
 import sys
@@ -30,19 +6,19 @@ import warnings
 import joblib
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-import shap  # noqa: E402
-from joblib import Parallel, delayed  # noqa: E402
-from scipy.stats import spearmanr  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import shap
+from joblib import Parallel, delayed
+from scipy.stats import spearmanr
 
 sys.path.insert(0, os.path.dirname(__file__))
-import cv  # noqa: E402
-import paths as P  # noqa: E402
-from modelling import fit_pipe, kept_names, load_data, make_pipeline  # noqa: E402
+import cv
+import paths as P
+from modelling import fit_pipe, kept_names, load_data, make_pipeline
 
-OUT = FIG = None   # set in main() from --k
+OUT = FIG = None
 GROUPINGS = ["phase", "habitat", "phase_habitat", "class"]
 COLOUR = {"pre": "#2a78d6", "early": "#eb6834", "late": "#1baf7a", "shape": "#eda100", "clinical": "#e87ba4"}
 INK, MUTED, GRID = "#1f1f1e", "#6b6a64", "#e4e3de"
@@ -63,7 +39,6 @@ def group_of(name, grouping):
 
 
 def explain(pipe, X_train, X_explain):
-    """SHAP values (n_explain, n_features_used) and the names of those features."""
     front = pipe[:-1]
     clf = pipe.named_steps["clf"]
     names = kept_names(pipe, X_train.columns)
@@ -98,7 +73,6 @@ def fold_job(model, clf, X, y, rep, fold, tr, va):
             for r in group_importance(sv, names)]
 
 
-# ----------------------------------------------------------------------------- figures
 def style_axes(ax, grid_axis="x"):
     for s in ["top", "right"]:
         ax.spines[s].set_visible(False)
@@ -195,7 +169,6 @@ def fig_beeswarm(sv, Z, names, title, path):
     plt.close(fig)
 
 
-# ----------------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--k", type=int, default=3)
@@ -213,7 +186,6 @@ def main():
     allX = pd.concat([X["clinical"], X["fused"]], axis=1)
     print(f"Development patients: {len(dev)}; test set not loaded.")
 
-    # ---- A. final models
     final_rows, top_rows = [], []
     for model, clf in [("pre", "lr"), ("early", "lr"), ("late", "lr"), ("fused", "lr"), ("clinical_best", "lr"),
                        ("fused", "xgb")]:
@@ -244,14 +216,12 @@ def main():
     final.round(4).to_csv(OUT / "group_importance_final.csv", index=False)
     pd.DataFrame(top_rows).round(4).to_csv(OUT / "top_features_final.csv", index=False)
 
-    # ---- B. fold models (explained on held-out patients)
     folds = cv.dev_folds(dev)
     tasks = [delayed(fold_job)(m, c, X[m], y, rep, f, tr, va)
              for m, c in [("fused", "lr"), ("fused", "xgb"), ("pre", "lr"), ("early", "lr"), ("late", "lr")]
              for rep, f, tr, va in folds]
     rows = [r for res in Parallel(n_jobs=args.jobs, verbose=5)(tasks) for r in res]
     per_fold = pd.DataFrame(rows)
-    # groups missing in a fold (no feature selected) count as share 0
     full = []
     for (m, c, g), d in per_fold.groupby(["model", "classifier", "grouping"]):
         piv = d.pivot_table(index=["repeat", "fold"], columns="group", values="share").fillna(0.0)
@@ -265,12 +235,10 @@ def main():
     per_fold.round(4).to_csv(OUT / "group_importance_folds.csv", index=False)
     summ.round(4).to_csv(OUT / "group_importance_summary.csv", index=False)
 
-    # ---- figures
     fig_phase_shares(summ, FIG / "fused_share_by_phase.png")
     fig_habitat_shares(summ, args.k, FIG / "phase_models_share_by_habitat.png")
     fig_heatmap(summ, args.k, FIG / "fused_phase_x_habitat.png")
 
-    # ---- console summary
     def show(model, clf, grouping):
         s = summ[(summ.model == model) & (summ.classifier == clf) & (summ.grouping == grouping)]
         f = final[(final.model == model) & (final.classifier == clf) & (final.grouping == grouping)] \

@@ -152,3 +152,16 @@ One entry per step. Newest at the bottom. Dates are YYYY-MM-DD.
   Clinical + best phase: k2 0.699, k3 0.686, k4 0.697.
 - Rule → **k = 3 stays** (k = 2 only +0.002). Best phase flips with k (k2 early, k3/k4 pre); phase gaps ≤ 0.017.
 - Fix: `run_overnight.py` now flushes each step log line to disk (the k = 4 log looked empty while running).
+
+## 2026-11-22 — Progress command + all code comments removed
+
+- New `src\progress.py`: prints the project status for the supervisor (15 work items, data, CV results, phase
+  tests, SHAP, k choice, what is left). It reads the result files live and checks that the test set is untouched.
+  Run from `D:\Projects\FYP`: `.\code\.venv\Scripts\python.exe .\code\src\progress.py`.
+- At the user's request, removed every `#` comment and docstring from `src\*.py`, the `REM` lines from the .bat
+  files, and the comments from `config\radiomics.yaml` and `requirements.txt`. Checked with Python's syntax tree:
+  the code is unchanged apart from the removed text. Explanations stay in this log and in the analysis plan.
+- `04_features.py` now fingerprints the PyRadiomics settings themselves (not the file bytes), so removing comments
+  from the YAML does not invalidate finished patients. The 3 × 1,138 saved patient results were moved to the new
+  fingerprint (settings identical). Checks after the change: feature CSVs byte-identical, `choose_k` and
+  `06_compare --k 3` outputs identical, saved models load and predict. Test set not used.

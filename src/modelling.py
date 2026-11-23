@@ -1,6 +1,3 @@
-"""Shared model code: the sklearn pipeline pieces and the data loading used by 05_train.py, 07_shap.py,
-08_final_test.py and the web app. The saved .joblib models need these classes, so keep them here
-(moving or renaming them breaks loading of saved models)."""
 import os
 import sys
 import warnings
@@ -17,20 +14,17 @@ from sklearn.utils.class_weight import compute_sample_weight
 from xgboost import XGBClassifier
 
 sys.path.insert(0, os.path.dirname(__file__))
-import cv  # noqa: E402
-import paths as P  # noqa: E402
+import cv
+import paths as P
 
-N_CLIN = 9            # the first 9 columns of every feature CSV are pid + clinical info
+N_CLIN = 9
 LASSO_CS = np.logspace(-2.5, 0.5, 13)
 L2_CS = np.logspace(-3, 1, 9)
 CORR_MAX = 0.95
 MODE_MAX = 0.95
 
 
-# ----------------------------------------------------------------------------- pipeline pieces
 class NearConstant(BaseEstimator, TransformerMixin):
-    """Drop columns where one value covers >= max_mode_frac of the training patients (or SD = 0)."""
-
     def __init__(self, max_mode_frac=MODE_MAX):
         self.max_mode_frac = max_mode_frac
 
@@ -49,8 +43,6 @@ class NearConstant(BaseEstimator, TransformerMixin):
 
 
 class CorrFilter(BaseEstimator, TransformerMixin):
-    """Greedy: walk the columns in order, keep a column only if |r| <= max_r with every column kept so far."""
-
     def __init__(self, max_r=CORR_MAX):
         self.max_r = max_r
 
@@ -71,8 +63,6 @@ class CorrFilter(BaseEstimator, TransformerMixin):
 
 
 class LassoSelect(BaseEstimator, TransformerMixin):
-    """L1 logistic regression, C chosen by inner stratified 5-fold CV (AUROC); keep non-zero coefficients."""
-
     def __init__(self, Cs=LASSO_CS, seed=P.SEED):
         self.Cs = Cs
         self.seed = seed
@@ -85,7 +75,7 @@ class LassoSelect(BaseEstimator, TransformerMixin):
         coef = np.abs(m.coef_.ravel())
         self.C_ = float(m.C_[0])
         self.mask_ = coef > 0
-        if not self.mask_.any():          # nothing survived: keep the single strongest feature
+        if not self.mask_.any():
             self.mask_[np.argmax(np.abs(np.corrcoef(np.c_[X, y], rowvar=False)[-1, :-1]))] = True
         return self
 
@@ -132,7 +122,6 @@ def fit_pipe(pipe, X, y):
 
 
 def kept_names(pipe, names):
-    """Feature names that reach the classifier."""
     names = np.asarray(names)
     for step in ["nearconst", "corr", "lasso"]:
         if step in pipe.named_steps:
@@ -140,9 +129,7 @@ def kept_names(pipe, names):
     return list(names)
 
 
-# ----------------------------------------------------------------------------- data
 def arm_group(arm):
-    """Plan section 7: HER2-targeted / immunotherapy / platinum / other."""
     if pd.isna(arm):
         return np.nan
     a = arm.lower()
@@ -156,7 +143,6 @@ def arm_group(arm):
 
 
 def load_data(k):
-    """Development patients only, with one feature matrix per model."""
     fdir = P.OUT / "features" / f"k{k}"
     blocks = {b: pd.read_csv(fdir / f"{b}.csv") for b in ["pre", "early", "late", "shape"]}
     dev = cv.dev_patients(cv.load_index())[["pid", "dataset", "split", "pCR", "subtype"]]
@@ -174,6 +160,6 @@ def load_data(k):
          "pre": blocks["pre"], "early": blocks["early"], "late": blocks["late"],
          "fused": pd.concat([blocks["pre"], blocks["early"], blocks["late"], blocks["shape"]], axis=1)}
     g = dev["arm"].map(arm_group)
-    arm = pd.get_dummies(g, prefix="arm", dtype=float).drop(columns="arm_other")   # "other" = reference
+    arm = pd.get_dummies(g, prefix="arm", dtype=float).drop(columns="arm_other")
     X["clinical_arm"] = pd.concat([clin.drop(columns="cohort_ispy2"), arm], axis=1)
     return dev, X

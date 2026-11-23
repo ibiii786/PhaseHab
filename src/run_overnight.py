@@ -1,19 +1,3 @@
-r"""
-run_overnight.py - Run the k = 2 and k = 4 analysis unattended (used by run_k2_k4_overnight.bat).
-
-Steps, in order (each one is skipped if it is already finished, so you can restart after a crash or reboot):
-  1. 04_features.py --k 2   radiomics features, k = 2  (resumes by itself: finished patients are skipped)
-  2. 04_features.py --k 4   radiomics features, k = 4
-  3. 05_train.py    --k 2   cross-validation + refit    (skipped if outputs/models/k2/DONE.txt exists)
-  4. 05_train.py    --k 4
-  5. choose_k.py            compares k = 2, 3, 4 on CV results -> outputs/models/k_selection.md
-
-Everything runs on this PC only: no internet, no Claude. The test set is never used.
-While it runs, Windows is asked not to go to sleep (the request ends when this program ends).
-Log: outputs/overnight_k2_k4.log (plus the normal log of each step).
-
-Run from code\ :  .venv\Scripts\python.exe src\run_overnight.py [--dry-run]
-"""
 import argparse
 import ctypes
 import datetime as dt
@@ -23,8 +7,8 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-import cv  # noqa: E402
-import paths as P  # noqa: E402
+import cv
+import paths as P
 
 PY = sys.executable
 LOG = P.OUT / "overnight_k2_k4.log"
@@ -39,16 +23,14 @@ def log(msg):
 
 
 def keep_awake(on):
-    """Ask Windows not to sleep while this program runs (no settings are changed)."""
     try:
         flags = ES_CONTINUOUS | (ES_SYSTEM_REQUIRED if on else 0)
         ctypes.windll.kernel32.SetThreadExecutionState(flags)
-    except Exception:  # noqa: BLE001  (not on Windows)
+    except Exception:
         pass
 
 
 def features_complete(k):
-    """True if features/k{k}/early.csv has every analysis patient."""
     f = P.OUT / "features" / f"k{k}" / "early.csv"
     if not f.exists():
         return False
@@ -58,7 +40,6 @@ def features_complete(k):
 
 
 def run_step(name, args, step_log=None):
-    """Run one script. Output goes to this window; if step_log is given it is also saved there."""
     log(f"START  {name}:  {' '.join(args)}")
     t0 = time.time()
     if step_log is None:
@@ -71,7 +52,7 @@ def run_step(name, args, step_log=None):
             for line in proc.stdout:
                 print(line, end="", flush=True)
                 f.write(line)
-                f.flush()          # so the log on disk is always up to date
+                f.flush()
             rc = proc.wait()
     mins = (time.time() - t0) / 60
     if rc != 0:
